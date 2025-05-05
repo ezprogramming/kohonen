@@ -40,6 +40,13 @@ def parse_args():
     env_run_name = os.getenv('SOM_RUN_NAME', 'som_model')
     env_verbose = os.getenv('SOM_VERBOSE', 'false').lower() in ('true', '1', 't', 'yes', 'y')
     
+    # Parse batch size environment variable
+    env_batch_size = os.getenv('SOM_BATCH_SIZE', None)
+    if env_batch_size and env_batch_size.strip():
+        env_batch_size = int(env_batch_size)
+    else:
+        env_batch_size = None
+    
     # Print debug information
     logger.info(f"Environment variables: WIDTH={env_width}, HEIGHT={env_height}, ITERATIONS={env_iterations}, SAMPLES={env_samples}")
     
@@ -54,6 +61,7 @@ def parse_args():
     parser.add_argument("--random-state", type=int, default=env_random_state, help=f"Random seed for reproducibility (default: {env_random_state})")
     parser.add_argument("--run-name", type=str, default=env_run_name, help=f"Name for the MLflow run (default: {env_run_name})")
     parser.add_argument("--verbose", action="store_true", default=env_verbose, help=f"Enable verbose output during training (default: {env_verbose})")
+    parser.add_argument("--batch-size", type=int, default=env_batch_size, help=f"Batch size for memory-efficient training (default: {env_batch_size if env_batch_size is not None else 'None (fully vectorized)'})")
     
     args = parser.parse_args()
     
@@ -86,7 +94,7 @@ def train_and_log_model(args):
     
     # Train the model
     logger.info(f"Starting training for {args.iterations} iterations")
-    metrics = som.train(data, n_iterations=args.iterations, verbose=args.verbose)
+    metrics = som.train(data, n_iterations=args.iterations, verbose=args.verbose, batch_size=args.batch_size)
     
     # Log the model to MLflow
     logger.info("Logging model to MLflow...")
@@ -101,7 +109,8 @@ def train_and_log_model(args):
             "n_samples": args.samples,
             "learning_rate": args.learning_rate,
             "sigma": args.sigma if args.sigma is not None else f"auto ({som.sigma_0})",
-            "random_state": args.random_state
+            "random_state": args.random_state,
+            "batch_size": args.batch_size if args.batch_size is not None else "None (fully vectorized)"
         },
         training_metrics=metrics,
         run_name=args.run_name,

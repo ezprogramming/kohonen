@@ -4,7 +4,7 @@ A high-performance implementation of the Kohonen Self-Organizing Map (SOM) algor
 
 ## Features
 
-- ⚡ **Vectorized Implementation**: 30-50x faster than naive triple-loop implementations using NumPy broadcasting
+- ⚡ **Vectorized Implementation**: 30-50x faster than naive triple-loop implementations using NumPy broadcasting with memory-efficient batch processing
 - 📦 **Production-Ready**: Clean, tested package with proper structure and documentation
 - 📈 **MLflow Integration**: Track experiments, metrics, and artifacts with MLflow
 - 🐳 **Containerized**: Ready-to-use Docker and docker-compose configurations
@@ -52,7 +52,10 @@ data = np.random.rand(samples, input_dim)
 
 # Train the SOM
 iterations = 300  # Configurable via SOM_ITERATIONS in .env
-metrics = som.train(data, n_iterations=iterations, verbose=True)
+# For smaller datasets, use fully vectorized approach (batch_size=None)
+# For larger datasets, use batch processing to control memory usage
+batch_size = None  # Set to a numeric value like 100 for large datasets
+metrics = som.train(data, n_iterations=iterations, verbose=True, batch_size=batch_size)
 
 # Get the trained weights
 weights = som.get_weights()
@@ -61,6 +64,19 @@ weights = som.get_weights()
 new_point = np.array([0.2, 0.5, 0.8])
 bmu_x, bmu_y = som.predict_bmu(new_point)
 print(f"BMU coordinates: ({bmu_x}, {bmu_y})")
+```
+
+### Memory-Efficient Training with Batch Processing
+
+For large datasets, you can use batch processing to control memory usage:
+
+```python
+# For a dataset with 100,000 samples
+large_data = np.random.rand(100000, input_dim)
+
+# Use batch processing with a batch size of 500
+# This reduces memory usage during training
+metrics = som.train(large_data, n_iterations=iterations, verbose=True, batch_size=500)
 ```
 
 ### Visualization
@@ -151,6 +167,7 @@ SOM_INPUT_DIM=3
 SOM_ITERATIONS=300
 SOM_SAMPLES=1000
 SOM_LEARNING_RATE=0.1
+SOM_BATCH_SIZE=100     # Set to control memory usage (omit for fully vectorized mode)
 SOM_RUN_NAME=som_model
 SOM_VERBOSE=true
 EOL
@@ -340,6 +357,7 @@ SOM_INPUT_DIM=3             # Input vector dimension
 SOM_ITERATIONS=300          # Training iterations
 SOM_SAMPLES=1000            # Number of random training samples
 SOM_LEARNING_RATE=0.1       # Initial learning rate
+SOM_BATCH_SIZE=             # Batch size for memory-efficient training (leave empty for fully vectorized mode)
 SOM_SIGMA=                  # Neighborhood radius (blank = auto calculated)
 SOM_RANDOM_STATE=42         # Random seed for reproducibility
 SOM_RUN_NAME=som_model      # Name for the MLflow run

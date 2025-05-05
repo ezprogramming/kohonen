@@ -119,12 +119,12 @@ def test_train_simple_case():
     
     # Verify metrics are returned
     assert 'quantization_error' in metrics
-    assert 'quantization_error_history' in metrics
+    assert 'quantization_errors' in metrics
     
     # Verify quantization error is computed and valid
     assert np.isscalar(metrics['quantization_error'])
     assert metrics['quantization_error'] >= 0
-    assert len(metrics['quantization_error_history']) > 0
+    assert len(metrics['quantization_errors']) > 0
 
 
 def test_predict_batch():
