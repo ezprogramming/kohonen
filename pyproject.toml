@@ -1,0 +1,84 @@
+[build-system]
+name = "hatchling"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kohonen"
+version = "0.1.0"
+description = "Vectorized Self-Organizing Map (SOM) implementation"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Mantel Developer"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "matplotlib>=3.5.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "ruff>=0.0.200",
+    "mypy>=0.990",
+]
+mlflow = [
+    "mlflow>=2.0.0",
+]
+api = [
+    "fastapi>=0.95.0",
+    "uvicorn>=0.20.0",
+    "pydantic>=2.0.0",
+]
+all = [
+    "kohonen[dev,mlflow,api]",
+]
+
+[project.urls]
+Repository = "https://github.com/organization/kohonen"
+Documentation = "https://kohonen.readthedocs.io"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kohonen"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/kohonen/scripts"]
+pythonpath = ["src"]
+python_files = ["test_script.py"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "matplotlib.*",
+    "mlflow.*",
+    "fastapi.*",
+    "pydantic.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+target-version = "py38"
+src = ["src"] 

@@ -1,0 +1,60 @@
+services:
+  # MLflow tracking server
+  mlflow:
+    build: .
+    command: mlflow server --host 0.0.0.0 --port 5000 --default-artifact-root /app/mlflow_data/artifacts
+    ports:
+      - "5050:5000"
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-/app/mlflow_data}
+    healthcheck:
+      test: curl --fail http://localhost:5000 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Training service
+  train:
+    build: .
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    command: python -m kohonen.scripts.train_script
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    env_file:
+      - .env
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      - RUN_ID_FILE=${RUN_ID_FILE:-/app/mlflow_data/run_id.txt}
+
+  # API service
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-8000}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      - SOM_RUN_ID_FILE=${SOM_RUN_ID_FILE:-/app/mlflow_data/run_id.txt}
+    healthcheck:
+      test: curl --fail http://localhost:${PORT:-8000}/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    command: python -m kohonen.scripts.api_script
+
+volumes:
+  mlflow_data:
+    driver: local 
