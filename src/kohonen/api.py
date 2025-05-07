@@ -11,7 +11,7 @@ logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
 
 try:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Query
     from pydantic import BaseModel
     
     # Models for request/response validation
@@ -33,24 +33,30 @@ try:
         height: int
         input_dim: int
         run_id: Optional[str] = None
+        metrics: Optional[Dict[str, float]] = None
+        experiment_name: Optional[str] = None
     
     # Global model instance
     model = None
     model_run_id = None
+    model_metrics = {}
     
     def get_model():
         """Get or load the SOM model."""
-        global model, model_run_id
+        global model, model_run_id, model_metrics
         
         # Check if we need to load a model
         if model is None:
             try:
                 # First try to import necessary modules
                 import mlflow
+                import numpy as np
                 from kohonen.som import SelfOrganizingMap
                 from kohonen.mlflow_utils import load_som_model
+                from kohonen.model_selection import load_best_model, find_best_run
+                from kohonen.config import settings
                 
-                # Try to get run_id from environment
+                # Try to get run_id from environment or find the best model
                 run_id = os.environ.get("SOM_RUN_ID", "").strip()
                 
                 # Clean run ID in case there are any unwanted characters
@@ -59,30 +65,54 @@ try:
                     logger.warning(f"Cleaned run ID to: {run_id}")
                 
                 if run_id:
+                    # Explicit run ID provided - use it
                     try:
                         logger.info(f"Loading model from MLflow with run_id: {run_id}")
                         model = load_som_model(run_id)
                         model_run_id = run_id
                         logger.info(f"Model loaded successfully: {model.width}x{model.height}")
+                        
+                        # Try to get metrics
+                        try:
+                            client = mlflow.tracking.MlflowClient()
+                            run = client.get_run(run_id)
+                            model_metrics = {k: v for k, v in run.data.metrics.items()}
+                            logger.info(f"Loaded metrics for model: {model_metrics}")
+                        except Exception as e:
+                            logger.warning(f"Could not load metrics for model: {e}")
                     except Exception as e:
-                        logger.error(f"Error loading model from MLflow: {e}")
-                        # Create a dummy model for demo purposes
-                        logger.info("Creating a fallback demo model")
-                        # Use environment variables for default model if available
-                        width = int(os.environ.get("SOM_WIDTH", 20))
-                        height = int(os.environ.get("SOM_HEIGHT", 20))
-                        input_dim = int(os.environ.get("SOM_INPUT_DIM", 3))
-                        model = SelfOrganizingMap(width, height, input_dim)
-                        model_run_id = "demo-model"
+                        logger.error(f"Error loading model from MLflow with run_id={run_id}: {e}")
+                        model = _create_fallback_model()
                 else:
-                    # Create a dummy model for demo purposes
-                    logger.info("No model ID provided, creating a demo model")
-                    # Use environment variables for default model if available
-                    width = int(os.environ.get("SOM_WIDTH", 20))
-                    height = int(os.environ.get("SOM_HEIGHT", 20))
-                    input_dim = int(os.environ.get("SOM_INPUT_DIM", 3))
-                    model = SelfOrganizingMap(width, height, input_dim)
-                    model_run_id = "demo-model"
+                    # No run ID provided - find best model
+                    logger.info("No specific run ID provided, finding best model...")
+                    try:
+                        # Find best run ID based on settings
+                        best_run_id = find_best_run(
+                            experiment_name=settings.mlflow_experiment_name,
+                            metric_key=settings.metric_key,
+                            ascending=settings.metric_ascending
+                        )
+                        
+                        if best_run_id:
+                            logger.info(f"Found best model with run_id: {best_run_id}")
+                            model = load_som_model(best_run_id)
+                            model_run_id = best_run_id
+                            
+                            # Get metrics for the best model
+                            try:
+                                client = mlflow.tracking.MlflowClient()
+                                run = client.get_run(best_run_id)
+                                model_metrics = {k: v for k, v in run.data.metrics.items()}
+                                logger.info(f"Loaded metrics for best model: {model_metrics}")
+                            except Exception as e:
+                                logger.warning(f"Could not load metrics for best model: {e}")
+                        else:
+                            logger.warning("No suitable model found, creating fallback model")
+                            model = _create_fallback_model()
+                    except Exception as e:
+                        logger.error(f"Error finding/loading best model: {e}")
+                        model = _create_fallback_model()
             except ImportError as e:
                 # Handle case when MLflow or SOM is not available
                 logger.error(f"Error importing required modules: {e}")
@@ -90,6 +120,23 @@ try:
                     status_code=500, 
                     detail="Model loading failed. Required modules not available."
                 )
+        
+        return model
+    
+    def _create_fallback_model():
+        """Create a fallback model for demo purposes."""
+        from kohonen.som import SelfOrganizingMap
+        from kohonen.config import settings
+        
+        global model_run_id
+        
+        # Use settings for default model
+        logger.info("Creating a fallback demo model")
+        width = settings.som_width
+        height = settings.som_height
+        input_dim = settings.som_input_dim
+        model = SelfOrganizingMap(width, height, input_dim)
+        model_run_id = "demo-model"
         
         return model
 
@@ -111,22 +158,32 @@ try:
         """Get information about the loaded model."""
         try:
             som = get_model()
+            
+            # Get experiment name from settings if available
+            experiment_name = None
+            try:
+                from kohonen.config import settings
+                experiment_name = settings.mlflow_experiment_name
+            except ImportError:
+                pass
+                
             return ModelInfo(
                 width=som.width,
                 height=som.height,
                 input_dim=som.input_dim,
-                run_id=model_run_id
+                run_id=model_run_id,
+                metrics=model_metrics,
+                experiment_name=experiment_name
             )
         except HTTPException as e:
             # For demo purposes, provide mock info if we can't get the model
             logger.warning("Using demo model info because model couldn't be loaded")
-            width = int(os.environ.get("SOM_WIDTH", 20))
-            height = int(os.environ.get("SOM_HEIGHT", 20))
-            input_dim = int(os.environ.get("SOM_INPUT_DIM", 3))
+            from kohonen.config import settings
+            
             return ModelInfo(
-                width=width,
-                height=height,
-                input_dim=input_dim,
+                width=settings.som_width,
+                height=settings.som_height,
+                input_dim=settings.som_input_dim,
                 run_id="demo-model"
             )
     
@@ -229,6 +286,36 @@ try:
             # For demo purposes, return fake weights if we can't get the model
             logger.warning("Using demo weights because model couldn't be loaded")
             return {"coordinates": {"x": x, "y": y}, "weights": [0.5, 0.5, 0.5]}
+            
+    @app.get("/models")
+    async def list_models(
+        max_results: int = Query(10, ge=1, le=100),
+        experiment_name: Optional[str] = None
+    ):
+        """List available models with their metrics."""
+        try:
+            from kohonen.model_selection import get_model_metrics_summary
+            from kohonen.config import settings
+            
+            # Use provided experiment name or default from settings
+            experiment_name = experiment_name or settings.mlflow_experiment_name
+            
+            # Get model metrics summary
+            df = get_model_metrics_summary(
+                experiment_name=experiment_name,
+                max_results=max_results
+            )
+            
+            if df.empty:
+                return {"models": []}
+            
+            # Convert to records
+            records = df.to_dict(orient="records")
+            return {"models": records, "experiment_name": experiment_name}
+            
+        except Exception as e:
+            logger.error(f"Error listing models: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 except ImportError as e:
     logger.warning(f"Required packages not installed. API functionality will be limited: {e}")

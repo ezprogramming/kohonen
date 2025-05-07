@@ -1,0 +1,121 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. Python Version & Style
+
+Target Python 3.9+. Ensure compatibility with up to 3.11.
+
+Follow PEP8 naming and formatting:
+
+snake_case for functions, variables, modules.
+
+PascalCase for classes.
+
+Max line length: 88 (Black default) or 100.
+
+Use Black for formatting, ruff for linting, mypy for static type checks.
+
+
+2. Docstrings & Type Hints
+
+Use Google‑style docstrings for all public functions and classes.
+
+Provide parameter and return descriptions.
+
+Annotate all functions, methods, and module-level variables with type hints (numpy.typing.NDArray, builtins, dict, etc.).
+
+3. Performance & Vectorization
+
+Never use triple‑nested Python for loops over input samples and grid cells.
+
+Vectorize distance computations and neighborhood updates with NumPy broadcasting.
+
+4. Reproducibility & Configuration
+
+Centralize hyper‑parameters in a config file (YAML/JSON) or via Pydantic Settings
+
+5. Testing & Quality Assurance
+
+Use pytest for all tests:
+
+Unit tests for:
+
+BMU selection boundary cases.
+
+Decay schedules (_decay monotonicity).
+
+Full pipeline shape invariants.
+
+Benchmark tests comparing vectorized vs. naïve for small grids.
+
+Aim for >90% coverage.
+
+Integrate coverage checks in CI.
+
+6. Observability & MLOps
+
+Integrate MLflow:
+
+Call mlflow.start_run() around training loops.
+
+Log hyper‑parameters, metrics (quantisation error per 100 iters), and model artifacts (weights npy).
+
+Provide a minimal Prometheus exporter for live metrics
+
+7. API & Service
+
+Use FastAPI for serving:
+
+Endpoint: POST /predict-bmu
+
+Accepts JSON list of floats or NDArray.
+
+Returns BMU coordinates.
+
+Auto‑reload in dev mode (uvicorn --reload).
+
+Validate inputs via Pydantic models.
+
+Hot‑reload model weights on change using watchdog.
+
+8. Packaging & CI/CD
+
+Single packaging approach:
+
+poetry (via pyproject.toml), OR
+
+setuptools (setup.py) + requirements.txt
+
+Docker:
+
+Multi‑stage build to minimize image size (install deps separately).
+
+Non‑root user for container.
+
+docker-compose.yml:
+
+Define services: mlflow, trainer, api.
+
+9. Documentation & Presentation
+
+README.md:
+
+Quick‑start commands (local venv & Docker).
+
+Architecture diagram (ASCII or Mermaid).
+
+Code snippet for training & inference.
+
+Slides:
+
+Highlight the five key improvements: vectorization, packaging, MLflow, Docker, API.
+
+Include before/after benchmarks and architecture.
+
+
+
+Notebooks:
+
+Use RISE or nbconvert slides for live demos.

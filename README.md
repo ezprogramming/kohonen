@@ -7,6 +7,7 @@ A high-performance implementation of the Kohonen Self-Organizing Map (SOM) algor
 - ⚡ **Vectorized Implementation**: 30-50x faster than naive triple-loop implementations using NumPy broadcasting with memory-efficient batch processing
 - 📦 **Production-Ready**: Clean, tested package with proper structure and documentation
 - 📈 **MLflow Integration**: Track experiments, metrics, and artifacts with MLflow
+- 🔍 **Model Selection**: Automatic selection of the best model based on configurable metrics
 - 🐳 **Containerized**: Ready-to-use Docker and docker-compose configurations
 - 🌐 **API Service**: FastAPI endpoint for serving trained models
 
@@ -147,6 +148,43 @@ response = requests.post(
     json={"data": np.random.rand(5, 3).tolist()}
 )
 print(response.json())  # {"results": [{"bmu_x": 10, "bmu_y": 15}, ...]}
+```
+
+### API Service with Model Selection
+
+The API service can automatically select the best model based on metrics:
+
+```bash
+# Start API with automatic model selection
+python -m kohonen.scripts.api_script
+
+# Start API with specific run ID
+python -m kohonen.scripts.api_script --run-id <run_id>
+
+# Start API with custom metric selection
+python -m kohonen.scripts.api_script --metric quantization_error --ascending
+```
+
+Make predictions:
+
+```python
+import requests
+import numpy as np
+
+# Get info about the selected model
+response = requests.get("http://localhost:8000/model-info")
+print(response.json())
+
+# List available models
+response = requests.get("http://localhost:8000/models?max_results=5")
+print(response.json())
+
+# Make a prediction
+response = requests.post(
+    "http://localhost:8000/predict-bmu",
+    json={"data": [0.2, 0.5, 0.8]}
+)
+print(response.json())  # {"bmu_x": 15, "bmu_y": 20}
 ```
 
 ## Docker Deployment
@@ -365,11 +403,16 @@ SOM_VERBOSE=true            # Enable verbose output during training
 
 # MLflow Configuration
 MLFLOW_TRACKING_URI=http://mlflow:5000
+MLFLOW_EXPERIMENT_NAME=som-experiments
 RUN_ID_FILE=/app/mlflow_data/run_id.txt
 
 # API Configuration
 PORT=8000
 SOM_RUN_ID_FILE=/app/mlflow_data/run_id.txt
+
+# Model Selection Configuration
+METRIC_KEY=quantization_error   # Metric used to select the best model
+METRIC_ASCENDING=true           # True -> minimize, False -> maximize
 ```
 
 These parameters will be automatically used by the Docker containers. Whenever you change parameters:
@@ -426,3 +469,44 @@ Available parameters:
 - `--random-state`: Random seed for reproducibility (default: from .env or None)
 - `--run-name`: Name for the MLflow run (default: from .env or "som_model")
 - `--verbose`: Enable verbose output during training (default: from .env or false) 
+
+## API Endpoints
+
+The SOM API provides the following endpoints:
+
+### GET /health
+Health check endpoint.
+
+### GET /model-info
+Get information about the loaded model, including its dimensions, run ID, and metrics.
+
+### POST /predict-bmu
+Find the BMU for a single input vector.
+
+```json
+{
+  "data": [0.2, 0.5, 0.8]
+}
+```
+
+### POST /predict-batch
+Find BMUs for multiple input vectors.
+
+```json
+{
+  "data": [
+    [0.2, 0.5, 0.8],
+    [0.9, 0.1, 0.3]
+  ]
+}
+```
+
+### GET /weights/{x}/{y}
+Get the weights for a specific node at coordinates (x, y).
+
+### GET /models
+List available models with their metrics and parameters.
+
+Query parameters:
+- `max_results`: Maximum number of models to return (default: 10)
+- `experiment_name`: Filter models by experiment name 
