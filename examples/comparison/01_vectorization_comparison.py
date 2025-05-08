@@ -16,6 +16,7 @@ import psutil
 from memory_profiler import memory_usage
 import sys
 from pathlib import Path
+import gc
 
 # Add the project root to the path so we can import the package
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -113,6 +114,56 @@ def measure_peak_memory(func, *args, **kwargs):
     return max(mem_usage) - baseline
 
 
+def measure_peak_memory_improved(func, *args, **kwargs):
+    """
+    Improved function to measure peak memory usage with multiple approaches.
+    This helps ensure more accurate and consistent memory measurements.
+    """
+    # Take initial measurement for baseline
+    process = psutil.Process(os.getpid())
+    baseline_rss = process.memory_info().rss / (1024 * 1024)  # Convert to MB
+    
+    # Measure using memory_profiler with finer granularity
+    mp_usage = memory_usage((func, args, kwargs), interval=0.05, timeout=None, max_usage=True)
+    mp_peak = mp_usage - memory_usage()[0]
+    
+    # Measure using psutil with manual tracking
+    result = None
+    peak_rss = 0
+    
+    def run_func():
+        nonlocal result
+        # Force garbage collection before measuring
+        gc.collect()
+        result = func(*args, **kwargs)
+    
+    # Start thread for running the function
+    import threading
+    import gc
+    thread = threading.Thread(target=run_func)
+    thread.start()
+    
+    # Monitor memory while function runs
+    while thread.is_alive():
+        current_rss = process.memory_info().rss / (1024 * 1024) - baseline_rss
+        peak_rss = max(peak_rss, current_rss)
+        time.sleep(0.01)  # Check every 10ms
+    
+    thread.join()
+    
+    # Take one final measurement after function completes
+    final_rss = process.memory_info().rss / (1024 * 1024) - baseline_rss
+    peak_rss = max(peak_rss, final_rss)
+    
+    # Log both measurements for comparison
+    print(f"Memory measurement comparison:")
+    print(f"  - memory_profiler: {mp_peak:.2f} MB")
+    print(f"  - psutil RSS peak: {peak_rss:.2f} MB")
+    
+    # Return the higher of the two measurements as a conservative estimate
+    return max(mp_peak, peak_rss)
+
+
 def generate_training_data(n_samples=1000, input_dim=3):
     """Generate random training data"""
     return np.random.rand(n_samples, input_dim)
@@ -147,7 +198,7 @@ def run_comparison(grid_sizes=[(10, 10), (20, 20), (30, 30)],
         
         print("Training naive SOM implementation...")
         _, naive_time = measure_execution_time(naive_som.train, data, n_iterations)
-        naive_memory = measure_peak_memory(naive_som.train, data, n_iterations)
+        naive_memory = measure_peak_memory_improved(naive_som.train, data, n_iterations)
         
         results['naive_time'].append(naive_time)
         results['naive_memory'].append(naive_memory)
@@ -159,7 +210,7 @@ def run_comparison(grid_sizes=[(10, 10), (20, 20), (30, 30)],
         
         print("Training vectorized SOM implementation...")
         _, vectorized_time = measure_execution_time(vectorized_som.train, data, n_iterations)
-        vectorized_memory = measure_peak_memory(vectorized_som.train, data, n_iterations)
+        vectorized_memory = measure_peak_memory_improved(vectorized_som.train, data, n_iterations)
         
         results['vectorized_time'].append(vectorized_time)
         results['vectorized_memory'].append(vectorized_memory)
@@ -249,7 +300,7 @@ if __name__ == "__main__":
     
     # Small-scale comparison for quick demonstration
     small_results = run_comparison(
-        grid_sizes=[(10, 10), (20, 20), (30, 30)],
+        grid_sizes=[(10, 10), (30, 30), (50, 50)],
         n_samples=1000,
         n_iterations=50
     )

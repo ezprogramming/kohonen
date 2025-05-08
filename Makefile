@@ -132,11 +132,11 @@ docker-demos:
 
 # Run individual comparison demos
 demo-vectorization:
-	@echo "Running Vectorization Comparison Demo..."
+	@echo "Running Vectorization Comparison Demo (10x10, 30x30, 50x50 grids)..."
 	python examples/comparison/01_vectorization_comparison.py
 
 demo-batch:
-	@echo "Running Batch Processing Memory Comparison Demo..."
+	@echo "Running Batch Processing Memory Comparison Demo (30x30 and 50x50 grids)..."
 	python examples/comparison/02_batch_processing_memory.py
 
 demo-mlflow:
@@ -177,8 +177,8 @@ help:
 	@echo "Comparison Demos:"
 	@echo "  make comparison-demos    - Run all comparison demos"
 	@echo "  make docker-demos        - Run all comparison demos in Docker"
-	@echo "  make demo-vectorization  - Run vectorization improvement demo"
-	@echo "  make demo-batch          - Run batch processing memory demo"
+	@echo "  make demo-vectorization  - Run vectorization improvement demo (10x10, 30x30, 50x50 grids)"
+	@echo "  make demo-batch          - Run batch processing memory demo (30x30 and 50x50 grids)"
 	@echo "  make demo-mlflow         - Run MLflow integration demo"
 	@echo "  make demo-api            - Run FastAPI integration demo"
 	@echo "  make demo-env-config     - Run environment configuration demo" 

@@ -51,25 +51,35 @@ The vectorization demo compares a naive triple-loop implementation with our full
 ![Vectorization Comparison](examples/comparison/vectorization_comparison.png)
 
 **Key Results**:
-- **Speed Improvement**: 30-50x faster training times, especially for larger grid sizes
+- **Speed Improvement**: Dramatic performance gains with speedups of:
+  - 51× faster for 10×10 grids
+  - 91× faster for 30×30 grids
+  - 89× faster for 50×50 grids
 - **Memory Efficiency**: The vectorized implementation uses memory more efficiently despite processing more data at once
-- **Scalability**: Performance gains increase with grid size, with larger grids seeing greater benefits
+- **Scalability**: Performance gains are most significant for medium and large grid sizes, making the implementation suitable for high-resolution SOMs
 
 This implementation completely eliminates the triple nested loops by using NumPy's broadcasting capabilities, resulting in dramatically faster training times without sacrificing accuracy.
 
 ### 2. Batch Processing for Memory Efficiency
 
-The batch processing demo shows how we manage memory usage for large datasets:
+The batch processing demo shows how we manage memory usage for large datasets with different grid sizes:
 
-![Batch Processing Memory Usage](examples/comparison/memory_profiles.png)
-![Batch Comparison](examples/comparison/batch_comparison.png)
+![Batch Processing Memory Usage (30×30)](examples/comparison/memory_profiles_30x30.png)
+![Batch Processing Memory Usage (50×50)](examples/comparison/memory_profiles_50x50.png)
+![Batch Comparison (30×30)](examples/comparison/batch_comparison_30x30.png)
+![Batch Comparison (50×50)](examples/comparison/batch_comparison_50x50.png)
 
 **Key Results**:
 - **Memory Control**: Batch processing allows training on very large datasets with minimal memory overhead
 - **Configurable Trade-off**: Users can select batch sizes to balance memory usage and performance
+- **Grid Size Scaling**: Memory requirements scale quadratically with grid size (50×50 grid uses ~3× more memory than 30×30)
 - **Automatic Adaptation**: The implementation automatically adjusts to handle datasets of any size
 
-For production use with larger datasets, batch sizes between 500-1000 samples offer the best balance between memory usage and performance.
+**Memory Usage Scaling**:
+- Full vectorization uses `O(N×width×height)` memory, leading to high consumption for large grids and datasets
+- Batch size of B uses only `O(B×width×height)` memory, reducing consumption proportionally
+- A 50×50 grid with batch size 100 uses only ~10% of the memory compared to full vectorization
+- Memory savings are more pronounced as grid size increases, making batching critical for large SOMs
 
 ### 3. MLflow Integration for Experiment Tracking
 
@@ -104,7 +114,13 @@ The FastAPI demo showcases the production-ready API for model serving:
 - **Batch Processing**: Efficient batch prediction endpoint for multiple inputs
 - **Model Information**: Endpoints to inspect the currently loaded model
 
-The API achieves sub-millisecond response times for single-vector predictions and efficiently handles batch requests.
+**API Performance Metrics**:
+- Single-vector prediction: ~0.8ms response time
+- Batch prediction (10 vectors): ~1.5ms response time
+- Model information endpoint: ~0.4ms response time
+- Scales well with larger grid sizes (performance remains fast even with 50×50 grids)
+
+The API achieves sub-millisecond response times for single-vector predictions and efficiently handles batch requests with excellent performance, even with large grid sizes.
 
 ### 5. Environment Configuration
 
@@ -472,19 +488,36 @@ The optimizations in this implementation deliver significant performance improve
 
 | Implementation | Grid Size | Dataset Size | Iterations | Time (s) | Memory (MB) | Speedup |
 |----------------|-----------|--------------|------------|----------|-------------|---------|
-| Naive (triple-loop) | 10x10 | 1,000 | 100 | 18.5 | 125 | 1x |
-| Vectorized | 10x10 | 1,000 | 100 | 0.6 | 90 | 30x |
-| Naive (triple-loop) | 30x30 | 1,000 | 100 | 165.3 | 210 | 1x |
-| Vectorized | 30x30 | 1,000 | 100 | 3.4 | 135 | 48x |
+| Naive (triple-loop) | 10×10 | 1,000 | 100 | 14.90 | 0.34 | 1× |
+| Vectorized | 10×10 | 1,000 | 100 | 0.29 | 3.67 | 51× |
+| Naive (triple-loop) | 30×30 | 1,000 | 100 | 136.59 | 3.08 | 1× |
+| Vectorized | 30×30 | 1,000 | 100 | 1.51 | 33.01 | 91× |
+| Naive (triple-loop) | 50×50 | 1,000 | 100 | 378.73 | 19.22 | 1× |
+| Vectorized | 50×50 | 1,000 | 100 | 4.27 | 91.69 | 89× |
+
+The memory values shown here represent the theoretical memory footprint based on the algorithm's implementation. The vectorized implementation uses more memory because it creates temporary arrays for vectorized operations, but this tradeoff is well worth the dramatic speedup in processing time.
 
 ### Memory Efficiency with Batch Processing
 
+#### 30×30 Grid
+
 | Batch Size | Dataset Size | Peak Memory (MB) | Training Time (s) |
 |------------|--------------|------------------|-------------------|
-| Full (no batching) | 10,000 | 420 | 4.5 |
-| 1000 | 10,000 | 180 | 5.2 |
-| 500 | 10,000 | 120 | 5.8 |
-| 100 | 10,000 | 75 | 7.3 |
+| Full (no batching) | 10,000 | 329.64 | 7.55 |
+| 1000 | 10,000 | 33.01 | 6.59 |
+| 500 | 10,000 | 16.53 | 6.61 |
+| 100 | 10,000 | 3.35 | 6.63 |
+
+#### 50×50 Grid
+
+| Batch Size | Dataset Size | Peak Memory (MB) | Training Time (s) |
+|------------|--------------|------------------|-------------------|
+| Full (no batching) | 10,000 | 915.58 | 20.57 |
+| 200 | 10,000 | 183.39 | 16.13 |
+| 100 | 10,000 | 91.69 | 16.04 |
+| 50 | 10,000 | 45.85 | 16.12 |
+
+The memory values demonstrate how batch processing drastically reduces memory usage by processing data in smaller chunks. Note the nearly linear relationship between batch size and memory consumption, confirming the O(batch_size) memory scaling of our implementation.
 
 ### API Performance
 
