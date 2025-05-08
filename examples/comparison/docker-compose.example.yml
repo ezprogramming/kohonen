@@ -1,0 +1,47 @@
+version: '3'
+
+services:
+  mlflow:
+    build: .
+    ports:
+      - "5050:5000"
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    command: ["python", "-m", "mlflow", "server", "--host", "0.0.0.0", "--port", "5000"]
+    networks:
+      - kohonen-network
+
+  trainer:
+    build: .
+    depends_on:
+      - mlflow
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    env_file:
+      - .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - RUN_ID_FILE=/app/mlflow_data/run_id.txt
+    networks:
+      - kohonen-network
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mlflow
+    volumes:
+      - ./mlflow_data:/app/mlflow_data
+    env_file:
+      - .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - SOM_RUN_ID_FILE=/app/mlflow_data/run_id.txt
+      - PORT=8000
+    command: ["python", "-m", "kohonen.scripts.api_script"]
+    networks:
+      - kohonen-network
+
+networks:
+  kohonen-network:

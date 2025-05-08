@@ -1,4 +1,4 @@
-.PHONY: build up down test train api clean inspect logs logs-mlflow logs-train logs-api help use-best use-specific fix-percent stop-all examples jupyter
+.PHONY: build up down test train api clean inspect logs logs-mlflow logs-train logs-api help use-best use-specific fix-percent stop-all examples jupyter comparison-demos docker-demos demo-vectorization demo-batch demo-mlflow demo-api demo-env-config
 
 # Build the Docker images
 build:
@@ -119,6 +119,38 @@ jupyter:
 # Open example notebooks in browser
 examples: jupyter
 
+# Run comparison demo scripts
+comparison-demos: demo-vectorization demo-batch demo-mlflow demo-api demo-env-config
+	@echo "All comparison demos completed!"
+	@echo "Check the examples/comparison/ directory for results and visualizations."
+
+# Run comparison demos in Docker
+docker-demos:
+	@echo "Running comparison demos in Docker..."
+	@docker compose run --rm demos
+	@echo "Comparison demos completed! Check the examples/comparison/ directory for results."
+
+# Run individual comparison demos
+demo-vectorization:
+	@echo "Running Vectorization Comparison Demo..."
+	python examples/comparison/01_vectorization_comparison.py
+
+demo-batch:
+	@echo "Running Batch Processing Memory Comparison Demo..."
+	python examples/comparison/02_batch_processing_memory.py
+
+demo-mlflow:
+	@echo "Running MLflow Integration Demo..."
+	python examples/comparison/03_mlflow_integration.py
+
+demo-api:
+	@echo "Running FastAPI Integration Demo..."
+	python examples/comparison/04_fastapi_integration.py
+
+demo-env-config:
+	@echo "Running Environment Configuration Demo..."
+	python examples/comparison/05_env_config_integration.py
+
 # Display help information about Makefile commands
 help:
 	@echo "Available commands:"
@@ -141,3 +173,12 @@ help:
 	@echo "  make logs-api    - View API logs"
 	@echo "  make jupyter     - Start Jupyter Notebook server for example notebooks"
 	@echo "  make examples    - Alias for jupyter command" 
+	@echo ""
+	@echo "Comparison Demos:"
+	@echo "  make comparison-demos    - Run all comparison demos"
+	@echo "  make docker-demos        - Run all comparison demos in Docker"
+	@echo "  make demo-vectorization  - Run vectorization improvement demo"
+	@echo "  make demo-batch          - Run batch processing memory demo"
+	@echo "  make demo-mlflow         - Run MLflow integration demo"
+	@echo "  make demo-api            - Run FastAPI integration demo"
+	@echo "  make demo-env-config     - Run environment configuration demo" 

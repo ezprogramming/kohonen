@@ -44,8 +44,15 @@ api = [
     "uvicorn>=0.20.0",
     "pydantic>=2.0.0",
 ]
+demos = [
+    "psutil>=5.9.0",
+    "memory-profiler>=0.61.0",
+    "pandas>=1.5.0",
+    "requests>=2.28.0",
+    "python-dotenv>=1.0.0",
+]
 all = [
-    "kohonen[dev,mlflow,api]",
+    "kohonen[dev,mlflow,api,demos]",
 ]
 
 [project.urls]

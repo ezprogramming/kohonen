@@ -1,0 +1,8 @@
+{
+  "run_id": "fe2ac7b7a81e4ef28a579eca76727ca0",
+  "run_name": "som_50x50_i100_lr0.05",
+  "grid_size": "50x50",
+  "learning_rate": 0.05,
+  "iterations": 100,
+  "quantization_error": 0.08670515733436734
+}

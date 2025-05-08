@@ -15,7 +15,7 @@ COPY src/ ./src/
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir wheel setuptools && \
-    pip wheel --no-cache-dir --wheel-dir /app/wheels -e ".[mlflow,api,dev]"
+    pip wheel --no-cache-dir --wheel-dir /app/wheels -e ".[mlflow,api,dev,demos]"
 
 # Start with a fresh image for the final stage
 FROM python:3.9-slim
@@ -39,7 +39,10 @@ COPY pyproject.toml README.md LICENSE ./
 # Install the wheels
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir /app/wheels/*.whl && \
-    pip install -e ".[dev]"
+    pip install -e ".[dev,demos]"
+
+# Create directory for comparison results
+RUN mkdir -p /app/examples/comparison
 
 # Create non-root user for security
 RUN useradd -m appuser && \

@@ -1,0 +1,23 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ /app/src/
+COPY pyproject.toml .
+
+# Install the package
+RUN pip install -e .
+
+# Create directory for MLflow data
+RUN mkdir -p /app/mlflow_data
+
+# Environment variables are provided at runtime via docker-compose.yml
+# or the docker run command with -e or --env-file
+
+# Default command to run the training script
+CMD ["python", "-m", "kohonen.scripts.train_script"]

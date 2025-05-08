@@ -96,6 +96,29 @@ services:
              python -m kohonen.scripts.api_script;
              fi'
 
+  # Comparison demos service
+  demos:
+    build: .
+    volumes:
+      - ./examples/comparison:/app/examples/comparison
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: >
+      sh -c 'echo "Running SOM Improvement Demonstrations" &&
+             python examples/comparison/01_vectorization_comparison.py &&
+             python examples/comparison/02_batch_processing_memory.py &&
+             python examples/comparison/03_mlflow_integration.py &&
+             python examples/comparison/04_fastapi_integration.py &&
+             python examples/comparison/05_env_config_integration.py'
+
 volumes:
   mlflow_data:
     name: kohonen_mlflow_data
