@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 """
-Script to inspect MLflow data and print information about stored models.
+MLflow Data Inspector for Kohonen SOM
+
+This script provides a way to inspect MLflow data and print information about stored SOM models.
+It helps with debugging, monitoring experiments, and finding specific run IDs without using the
+MLflow UI. The script can:
+
+1. List all experiments and their runs
+2. Show detailed information about a specific run, including:
+   - Parameters used for training
+   - Final metrics achieved
+   - Metadata tags
+   - Artifacts stored (models, visualizations)
+
+Usage:
+    python -m kohonen.scripts.inspect_mlflow [--mlflow-dir DIR] [--run-id RUN_ID]
+
+Via Makefile:
+    make inspect [run_id=<run_id>]
 """
 import os
 import sys
@@ -32,6 +49,11 @@ def inspect_mlflow_data(mlflow_dir: str, run_id: str = None):
         Path to the MLflow data directory
     run_id : str, optional
         Specific run ID to inspect in detail
+    
+    Returns:
+    --------
+    int
+        Exit code (0 for success, 1 for errors)
     """
     mlflow_path = Path(mlflow_dir)
     

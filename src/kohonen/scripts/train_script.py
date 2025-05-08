@@ -121,7 +121,27 @@ def train_and_log_model(args):
     logger.info(f"Model trained and logged with run ID: {run_id}")
     run_id_file = os.getenv("RUN_ID_FILE", "/app/mlflow_data/run_id.txt")
     with open(run_id_file, "w") as f:
-        f.write(run_id.strip())  # Ensure no extra characters
+        # Ensure no extra characters in run ID
+        clean_run_id = run_id.strip().rstrip('%')
+        f.write(clean_run_id)
+        # Add a newline to prevent % display in terminal
+        f.write("\n")
+        # Make sure no trailing newlines or spaces are added
+        f.flush()
+        # Truncate to exact length to ensure no extra characters
+        f.truncate()
+    
+    # Verify the file was written correctly
+    try:
+        with open(run_id_file, "r") as f:
+            saved_run_id = f.read().strip()  # Strip to remove the newline when reading
+        if saved_run_id != clean_run_id:
+            logger.warning(f"Verification failed: saved run_id '{saved_run_id}' doesn't match expected '{clean_run_id}'")
+            logger.warning(f"Binary representation: {' '.join([hex(ord(c)) for c in saved_run_id])}")
+        else:
+            logger.info("Run ID successfully saved to file.")
+    except Exception as e:
+        logger.warning(f"Could not verify run ID file: {e}")
     
     return run_id
 

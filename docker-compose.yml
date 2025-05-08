@@ -6,7 +6,7 @@ services:
     ports:
       - "5050:5000"
     volumes:
-      - ./mlflow_data:/app/mlflow_data
+      - mlflow_data:/app/mlflow_data
     environment:
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-/app/mlflow_data}
     healthcheck:
@@ -15,6 +15,17 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Training service
   train:
@@ -24,37 +35,68 @@ services:
         condition: service_healthy
     command: python -m kohonen.scripts.train_script
     volumes:
-      - ./mlflow_data:/app/mlflow_data
+      - mlflow_data:/app/mlflow_data
     env_file:
       - .env
     environment:
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       - RUN_ID_FILE=${RUN_ID_FILE:-/app/mlflow_data/run_id.txt}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # API service
   api:
     build: .
+    container_name: kohonen-api  # Fixed container name for easier management
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
       mlflow:
         condition: service_healthy
     volumes:
-      - ./mlflow_data:/app/mlflow_data
+      - mlflow_data:/app/mlflow_data
     env_file:
       - .env
     environment:
       - PORT=${PORT:-8000}
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       - SOM_RUN_ID_FILE=${SOM_RUN_ID_FILE:-/app/mlflow_data/run_id.txt}
+      - SOM_METRIC_KEY=${SOM_METRIC_KEY:-quantization_error}
+      - SOM_METRIC_ASCENDING=${SOM_METRIC_ASCENDING:-true}
+      - SOM_FORCE_BEST=${SOM_FORCE_BEST:-false}
     healthcheck:
       test: curl --fail http://localhost:${PORT:-8000}/health || exit 1
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 5s
-    command: python -m kohonen.scripts.api_script
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: >
+      sh -c 'if [ "${SOM_FORCE_BEST:-false}" = "true" ]; then
+             python -m kohonen.scripts.api_script --force-best;
+             else
+             python -m kohonen.scripts.api_script;
+             fi'
 
 volumes:
   mlflow_data:
+    name: kohonen_mlflow_data
     driver: local 

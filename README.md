@@ -121,6 +121,33 @@ run_id = log_som_model(
 loaded_som = load_som_model(run_id)
 ```
 
+#### Inspecting MLflow Experiments
+
+You can inspect your MLflow experiments and runs using the provided `inspect_mlflow.py` script:
+
+```python
+# Inspect all experiments and runs
+python -m kohonen.scripts.inspect_mlflow
+
+# Inspect a specific run with detailed information
+python -m kohonen.scripts.inspect_mlflow --run-id <run_id>
+
+# Specify a custom MLflow data directory
+python -m kohonen.scripts.inspect_mlflow --mlflow-dir path/to/mlflow_data
+```
+
+Or use the Makefile shortcut:
+
+```bash
+# Inspect all experiments
+make inspect
+
+# Inspect a specific run
+make inspect run_id=<run_id>
+```
+
+This tool helps you understand your experiment structure, view run parameters, metrics, and artifacts without needing to use the MLflow UI.
+
 ### API Service
 
 Start the API service:
@@ -155,14 +182,17 @@ print(response.json())  # {"results": [{"bmu_x": 10, "bmu_y": 15}, ...]}
 The API service can automatically select the best model based on metrics:
 
 ```bash
-# Start API with automatic model selection
-python -m kohonen.scripts.api_script
+# Start API with automatic model selection (automatically starts MLflow if not running)
+make api
 
-# Start API with specific run ID
+# Start API with specific run ID (from command line)
 python -m kohonen.scripts.api_script --run-id <run_id>
 
 # Start API with custom metric selection
 python -m kohonen.scripts.api_script --metric quantization_error --ascending
+
+# Force using the best model even if a run ID is available
+python -m kohonen.scripts.api_script --force-best
 ```
 
 Make predictions:
@@ -193,217 +223,24 @@ The recommended way to deploy the SOM is using Docker Compose with an `.env` fil
 
 ### Using Docker Compose (Recommended)
 
-1. Create a `.env` file in the project root:
+1. Create a `.env` file in the project root or use the provided example:
 
-```bash
-# Create a basic configuration
-cat > .env << EOL
-# SOM Configuration Parameters
+```
+# SOM Configuration
 SOM_WIDTH=50
 SOM_HEIGHT=50
 SOM_INPUT_DIM=3
 SOM_ITERATIONS=300
 SOM_SAMPLES=1000
 SOM_LEARNING_RATE=0.1
-SOM_BATCH_SIZE=100     # Set to control memory usage (omit for fully vectorized mode)
+SOM_BATCH_SIZE=
+SOM_SIGMA=
+SOM_RANDOM_STATE=42
 SOM_RUN_NAME=som_model
 SOM_VERBOSE=true
-EOL
-```
-
-2. Build and start the services:
-
-```bash
-# Build Docker images with current configuration
-docker compose build
-
-# Start all services (MLflow, training, API)
-docker compose up -d
-```
-
-3. Monitor the training progress:
-
-```bash
-docker compose logs -f train
-```
-
-4. When training completes, the API service will automatically load the trained model
-   and serve it at http://localhost:8000.
-
-> **Important**: After updating the `.env` file, you must rebuild the Docker images with
-> `docker compose build` for the changes to take effect.
-
-### Single Container (Advanced)
-
-For standalone container deployment:
-
-```bash
-docker build -t kohonen-som .
-docker run -p 8000:8000 -e SOM_WIDTH=50 -e SOM_HEIGHT=50 -e SOM_RUN_ID=your_run_id kohonen-som
-```
-
-## Development
-
-Run tests:
-
-```bash
-pytest
-```
-
-Run linting and type checking:
-
-```bash
-ruff check src/
-mypy src/
-```
-
-## Project Structure
-
-The project follows a clean, production-ready structure:
-
-```
-kohonen/
-├── src/                  # Source code
-│   └── kohonen/          # Main package
-│       ├── scripts/      # Command-line scripts
-│       │   ├── train_script.py    # Training script
-│       │   ├── api_script.py      # API server script
-│       │   ├── test_script.py     # Test runner and unit tests
-│       │   └── inspect_mlflow.py  # MLflow data inspector
-│       ├── api.py        # FastAPI implementation
-│       ├── mlflow_utils.py # MLflow integration
-│       ├── som.py        # Core SOM implementation
-│       └── visualization.py # Visualization utilities
-├── mlflow_data/          # MLflow tracking data
-│   ├── artifacts/        # Model artifacts
-│   └── [experiment_id]/  # Experiment metadata
-├── docker-compose.yml    # Docker Compose configuration
-├── Dockerfile            # Docker image definition
-├── Makefile              # Common commands
-├── pyproject.toml        # Package configuration
-└── README.md             # This file
-```
-
-## MLflow Data Structure
-
-MLflow stores experiment data in a structured way:
-
-```
-mlflow_data/
-├── [experiment_id]/                 # Directory for each experiment
-│   └── [run_id]/                    # Directory for each run within experiment
-│       ├── artifacts/               # Model artifacts
-│       ├── metrics/                 # Run metrics
-│       ├── params/                  # Run parameters
-│       └── tags/                    # Run metadata tags
-├── artifacts/                       # Central artifact store
-│   └── [experiment_id]/             # Artifacts by experiment
-│       └── [run_id]/                # Artifacts by run
-│           └── artifacts/
-│               ├── models/          # Stored models
-│               └── visualizations/  # Visualizations
-└── .trash/                          # Deleted experiments
-```
-
-Each run ID is a unique identifier for a trained model. The system stores:
-
-1. **Model Artifacts**: The trained SOM model, saved in a serialized format
-2. **Visualizations**: Generated plots of the SOM grid, component planes, etc.
-3. **Metrics**: Performance metrics like quantization error
-4. **Parameters**: Model hyperparameters (width, height, learning rate, etc.)
-5. **Tags**: Metadata about the run (name, timestamp, etc.)
-
-## Using the API After Training
-
-The API service automatically loads the latest trained model from MLflow. Here's how to use it:
-
-1. Train a model:
-   ```bash
-   # Run training with parameters from .env file
-   make train
-   
-   # Or with custom arguments
-   make train TRAIN_ARGS="--width 100 --height 100 --iterations 500"
-   ```
-
-2. Start the API service (if not already running):
-   ```bash
-   make api
-   ```
-
-3. Send requests to the API:
-   ```bash
-   # Get information about the loaded model
-   curl http://localhost:8000/model-info
-   
-   # Make a prediction for a single data point
-   curl -X POST -H "Content-Type: application/json" \
-     -d '{"data": [0.2, 0.5, 0.8]}' \
-     http://localhost:8000/predict-bmu
-   
-   # Make predictions for multiple data points
-   curl -X POST -H "Content-Type: application/json" \
-     -d '{"data": [[0.2, 0.5, 0.8], [0.9, 0.1, 0.3]]}' \
-     http://localhost:8000/predict-batch
-   ```
-
-## Makefile Commands
-
-For convenience, common tasks are available as make commands:
-
-```bash
-# Build Docker images
-make build
-
-# Start all services (MLflow, training, API)
-make up
-
-# Run only the training service
-make train
-
-# Run only the API service
-make api
-
-# Run tests
-make test
-
-# Stop all services
-make down
-
-# Inspect MLflow data
-make inspect
-
-# Show logs
-make logs
-```
-
-## License
-
-MIT 
-
-## Using Custom Parameters
-
-### Environment-Based Configuration
-
-The project now uses an `.env` file for configuration by default. Create a `.env` file in the project root with your desired parameters:
-
-```
-# SOM Configuration Parameters
-SOM_WIDTH=50                # Default grid width is now 50 
-SOM_HEIGHT=50               # Default grid height is now 50
-SOM_INPUT_DIM=3             # Input vector dimension
-SOM_ITERATIONS=300          # Training iterations
-SOM_SAMPLES=1000            # Number of random training samples
-SOM_LEARNING_RATE=0.1       # Initial learning rate
-SOM_BATCH_SIZE=             # Batch size for memory-efficient training (leave empty for fully vectorized mode)
-SOM_SIGMA=                  # Neighborhood radius (blank = auto calculated)
-SOM_RANDOM_STATE=42         # Random seed for reproducibility
-SOM_RUN_NAME=som_model      # Name for the MLflow run
-SOM_VERBOSE=true            # Enable verbose output during training
 
 # MLflow Configuration
 MLFLOW_TRACKING_URI=http://mlflow:5000
-MLFLOW_EXPERIMENT_NAME=som-experiments
 RUN_ID_FILE=/app/mlflow_data/run_id.txt
 
 # API Configuration
@@ -411,102 +248,126 @@ PORT=8000
 SOM_RUN_ID_FILE=/app/mlflow_data/run_id.txt
 
 # Model Selection Configuration
-METRIC_KEY=quantization_error   # Metric used to select the best model
-METRIC_ASCENDING=true           # True -> minimize, False -> maximize
+# Metric used to select the best model
+SOM_METRIC_KEY=quantization_error
+# True -> minimize, False -> maximize  
+SOM_METRIC_ASCENDING=true
+# Force using best model regardless of run ID (default false)
+SOM_FORCE_BEST=false
 ```
 
-These parameters will be automatically used by the Docker containers. Whenever you change parameters:
-
-1. Edit the `.env` file with your new values
-2. Rebuild the Docker images: `docker compose build`
-3. Restart the services: `docker compose up -d`
-
-This workflow ensures all services use the same configuration parameters.
-
-### Docker Compose Workflow
-
-To use the SOM with Docker Compose:
-
-1. Create or modify your `.env` file with desired parameters
-2. Build the Docker images:
-   ```bash
-   docker compose build
-   ```
-3. Start all services:
-   ```bash
-   docker compose up -d
-   ```
-4. Check the logs to monitor the training process:
-   ```bash
-   docker compose logs -f train
-   ```
-5. When training is complete, access the API at `http://localhost:8000`
-6. Stop all services when done:
-   ```bash
-   docker compose down
-   ```
-
-> **Important**: After making code changes or updating the `.env` file, you must rebuild the Docker images with `docker compose build` for the changes to take effect.
-
-### Command Line Arguments (Advanced)
-
-You can still override the environment variables with command-line arguments:
+2. Start the Docker services:
 
 ```bash
-# Using Docker Compose with custom arguments
-docker compose run --rm train python -m kohonen.scripts.train_script --width 50 --height 50 --iterations 200
+# Build the Docker images (required for first run or after code changes)
+make build
+
+# Start all services (MLflow, training, and API)
+make up
+
+# Access the MLflow UI at http://localhost:5050
+# Access the API at http://localhost:8000
 ```
 
-Available parameters:
+## Model Selection & Configuration
 
-- `--width`: Width of the SOM grid (default: from .env or 30)
-- `--height`: Height of the SOM grid (default: from .env or 30)
-- `--input-dim`: Input dimension (default: from .env or 3)
-- `--iterations`: Number of training iterations (default: from .env or 100)
-- `--samples`: Number of random samples to generate (default: from .env or 1000)
-- `--learning-rate`: Initial learning rate (default: from .env or 0.1)
-- `--sigma`: Initial neighborhood radius (default: from .env or max(width, height)/2)
-- `--random-state`: Random seed for reproducibility (default: from .env or None)
-- `--run-name`: Name for the MLflow run (default: from .env or "som_model")
-- `--verbose`: Enable verbose output during training (default: from .env or false) 
+The API service can be configured to use either a specific model or automatically select the best model based on performance metrics.
 
-## API Endpoints
+### Understanding Model Selection
 
-The SOM API provides the following endpoints:
+The model selection process follows these rules:
 
-### GET /health
-Health check endpoint.
+1. When `SOM_FORCE_BEST=true`:
+   - The API will ignore run_id.txt and always select the best model based on metrics
+   - The metric used for selection is defined by `SOM_METRIC_KEY` (default: quantization_error)
+   - Whether to minimize or maximize the metric is set by `SOM_METRIC_ASCENDING` (default: true, meaning lower values are better)
 
-### GET /model-info
-Get information about the loaded model, including its dimensions, run ID, and metrics.
+2. When `SOM_FORCE_BEST=false` (default):
+   - The API first checks for a run_id passed as a command-line argument
+   - If no argument is provided, it reads the run_id from run_id.txt
+   - If a valid run ID is found, it uses that specific model
+   - If no valid run ID is found, it falls back to selecting the best model
 
-### POST /predict-bmu
-Find the BMU for a single input vector.
+### Training and Model Updates
 
-```json
-{
-  "data": [0.2, 0.5, 0.8]
-}
+When you run training, the system automatically:
+1. Trains a new SOM model with the parameters in .env
+2. Logs it to MLflow for tracking
+3. Writes the new run ID to run_id.txt
+4. The API service (if started after training) will use this newly trained model
+
+### Configuring Model Selection
+
+You can use these Makefile commands to manage model selection:
+
+```bash
+# Configure API to always use the best model (ignore run_id.txt)
+make use-best
+
+# Configure API to use a specific run ID
+make use-specific run_id=YOUR_RUN_ID
 ```
 
-### POST /predict-batch
-Find BMUs for multiple input vectors.
+Or modify environment variables directly:
 
-```json
-{
-  "data": [
-    [0.2, 0.5, 0.8],
-    [0.9, 0.1, 0.3]
-  ]
-}
+```bash
+# In .env file
+SOM_FORCE_BEST=true    # Always use best model
+SOM_FORCE_BEST=false   # Use run_id.txt if available
 ```
 
-### GET /weights/{x}/{y}
-Get the weights for a specific node at coordinates (x, y).
+### Inspecting Available Models
 
-### GET /models
-List available models with their metrics and parameters.
+To see available models:
 
-Query parameters:
-- `max_results`: Maximum number of models to return (default: 10)
-- `experiment_name`: Filter models by experiment name 
+```bash
+# View all runs in MLflow
+make inspect
+
+# View details of a specific run
+make inspect run_id=YOUR_RUN_ID
+
+# Check which model the API is currently using
+curl http://localhost:8000/model-info
+```
+
+### Retraining & Docker Rebuild Guidelines
+
+For different types of changes:
+
+1. **Code changes in src/kohonen/**: You need to rebuild the Docker image
+   ```bash
+   make build
+   make up
+   ```
+
+2. **Changes to environment variables in docker-compose.yml or .env**: No rebuild needed, just restart
+   ```bash
+   make down
+   make up
+   ```
+
+3. **To train a new model with current settings**:
+   ```bash
+   make train
+   ```
+   This will automatically write the new run ID to run_id.txt
+
+## Development and Testing
+
+To run tests locally:
+
+```bash
+# Run all tests
+python -m kohonen.scripts.test_script
+
+# Activate Python linting
+ruff src/kohonen/
+
+# Check type annotations
+mypy src/kohonen/
+```
+
+## License
+
+This project is released under the MIT License. See the [LICENSE](LICENSE) file for details. 
