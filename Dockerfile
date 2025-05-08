@@ -44,6 +44,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Create directory for comparison results
 RUN mkdir -p /app/examples/comparison
 
+# Create and set permissions for mlflow data directory
+RUN mkdir -p /app/mlflow_data/artifacts && \
+    chmod -R 777 /app/mlflow_data
+
 # Create non-root user for security
 RUN useradd -m appuser && \
     chown -R appuser:appuser /app

@@ -1,4 +1,4 @@
-.PHONY: build up down test train api clean inspect logs logs-mlflow logs-train logs-api help use-best use-specific fix-percent stop-all examples jupyter comparison-demos docker-demos demo-vectorization demo-batch demo-mlflow demo-api demo-env-config
+.PHONY: build up down test train api clean inspect logs logs-mlflow logs-train logs-api help use-best use-specific fix-percent stop-all examples jupyter comparison-demos docker-demos demo-vectorization demo-batch demo-mlflow demo-api demo-env-config docker-demo-vectorization docker-demo-batch docker-demo-mlflow docker-demo-api docker-demo-env-config
 
 # Build the Docker images
 build:
@@ -6,7 +6,7 @@ build:
 
 # Start all services
 up:
-	docker compose up -d
+	docker compose up -d mlflow api
 
 # Start specific service
 mlflow:
@@ -14,11 +14,8 @@ mlflow:
 
 # Run only the training service
 train:
-	@if [ -z "$(TRAIN_ARGS)" ]; then \
-		docker compose run --rm train python -m kohonen.scripts.train_script; \
-	else \
-		docker compose run --rm train python -m kohonen.scripts.train_script $(TRAIN_ARGS); \
-	fi
+	@echo "Running training script (container will exit when complete)..."
+	@docker compose run --rm train python -m kohonen.scripts.train_script $(TRAIN_ARGS)
 	@echo "Adding newline to run_id.txt to prevent % character display issue..."
 	@cat mlflow_data/run_id.txt | tr -d '\n' > mlflow_data/run_id.txt.tmp && echo "" >> mlflow_data/run_id.txt.tmp && mv mlflow_data/run_id.txt.tmp mlflow_data/run_id.txt
 
@@ -67,19 +64,32 @@ stop-all:
 	@echo "Stopping all Docker Compose services..."
 	@docker compose down
 	@echo "Checking for any remaining Kohonen containers..."
+	@# Find containers with 'kohonen' in name
 	@CONTAINERS=$$(docker ps -a --filter "name=kohonen" --format "{{.ID}}"); \
 	if [ -n "$$CONTAINERS" ]; then \
-		echo "Found additional containers. Stopping and removing them..."; \
+		echo "Found additional containers with 'kohonen' in name. Stopping and removing them..."; \
 		docker stop $$CONTAINERS || true; \
 		docker rm $$CONTAINERS || true; \
-		echo "All remaining containers removed."; \
-	else \
-		echo "No additional containers found."; \
 	fi
+	@# Check for any remaining run- containers from docker compose run
+	@CONTAINERS=$$(docker ps -a --filter "name=kohonen-train-run" --format "{{.ID}}"); \
+	if [ -n "$$CONTAINERS" ]; then \
+		echo "Found train run containers. Stopping and removing them..."; \
+		docker stop $$CONTAINERS || true; \
+		docker rm $$CONTAINERS || true; \
+	fi
+	@CONTAINERS=$$(docker ps -a --filter "name=kohonen-demos-run" --format "{{.ID}}"); \
+	if [ -n "$$CONTAINERS" ]; then \
+		echo "Found demos run containers. Stopping and removing them..."; \
+		docker stop $$CONTAINERS || true; \
+		docker rm $$CONTAINERS || true; \
+	fi
+	@echo "All Kohonen-related containers have been removed."
 
 # Run tests
 test:
-	docker compose run --rm train python -m kohonen.scripts.test_script
+	@echo "Running tests (container will exit when complete)..."
+	@docker compose run --rm train python -m kohonen.scripts.test_script
 
 # Stop all services
 down:
@@ -92,6 +102,7 @@ clean:
 # Inspect MLflow data 
 # Usage: make inspect [run_id=<run_id>] to view details of a specific run
 inspect:
+	@echo "Running inspect (container will exit when complete)..."
 	@if [ -z "$(run_id)" ]; then \
 		docker compose run --rm train python -m kohonen.scripts.inspect_mlflow; \
 	else \
@@ -126,8 +137,13 @@ comparison-demos: demo-vectorization demo-batch demo-mlflow demo-api demo-env-co
 
 # Run comparison demos in Docker
 docker-demos:
-	@echo "Running comparison demos in Docker..."
-	@docker compose run --rm demos
+	@echo "Running all demos (container will exit when complete)..."
+	@docker compose run --rm demos sh -c 'echo "Running SOM Improvement Demonstrations" && \
+             python examples/comparison/01_vectorization_comparison.py && \
+             python examples/comparison/02_batch_processing_memory.py && \
+             python examples/comparison/03_mlflow_integration.py && \
+             python examples/comparison/04_fastapi_integration.py && \
+             python examples/comparison/05_env_config_integration.py'
 	@echo "Comparison demos completed! Check the examples/comparison/ directory for results."
 
 # Run individual comparison demos
@@ -150,6 +166,32 @@ demo-api:
 demo-env-config:
 	@echo "Running Environment Configuration Demo..."
 	python examples/comparison/05_env_config_integration.py
+
+# Run individual Docker demo scripts
+docker-demo-vectorization:
+	@echo "Running vectorization demo (container will exit when complete)..."
+	@docker compose run --rm demos python examples/comparison/01_vectorization_comparison.py
+	@echo "Vectorization demo completed! Check the examples/comparison/ directory for results."
+
+docker-demo-batch:
+	@echo "Running batch processing demo (container will exit when complete)..."
+	@docker compose run --rm demos python examples/comparison/02_batch_processing_memory.py
+	@echo "Batch processing demo completed! Check the examples/comparison/ directory for results."
+
+docker-demo-mlflow:
+	@echo "Running MLflow integration demo (container will exit when complete)..."
+	@docker compose run --rm demos python examples/comparison/03_mlflow_integration.py
+	@echo "MLflow integration demo completed! Check the examples/comparison/ directory for results."
+
+docker-demo-api:
+	@echo "Running FastAPI integration demo (container will exit when complete)..."
+	@docker compose run --rm demos python examples/comparison/04_fastapi_integration.py
+	@echo "FastAPI integration demo completed! Check the examples/comparison/ directory for results."
+
+docker-demo-env-config:
+	@echo "Running environment configuration demo (container will exit when complete)..."
+	@docker compose run --rm demos python examples/comparison/05_env_config_integration.py
+	@echo "Environment configuration demo completed! Check the examples/comparison/ directory for results."
 
 # Display help information about Makefile commands
 help:
@@ -182,3 +224,11 @@ help:
 	@echo "  make demo-mlflow         - Run MLflow integration demo"
 	@echo "  make demo-api            - Run FastAPI integration demo"
 	@echo "  make demo-env-config     - Run environment configuration demo" 
+	@echo ""
+	@echo "Docker Demos (Run demos in Docker containers):"
+	@echo "  make docker-demos              - Run all comparison demos in Docker"
+	@echo "  make docker-demo-vectorization - Run vectorization demo in Docker"
+	@echo "  make docker-demo-batch         - Run batch processing demo in Docker"
+	@echo "  make docker-demo-mlflow        - Run MLflow integration demo in Docker" 
+	@echo "  make docker-demo-api           - Run FastAPI integration demo in Docker"
+	@echo "  make docker-demo-env-config    - Run environment config demo in Docker" 

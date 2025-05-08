@@ -304,6 +304,28 @@ response = requests.post(
 print(response.json())  # {"results": [{"bmu_x": 10, "bmu_y": 15}, ...]}
 ```
 
+### Testing API with curl
+
+You can also test the API endpoints using curl from the command line:
+
+```bash
+# Get model information
+curl -X GET http://localhost:8000/model-info
+
+# List available models (limited to 5 results)
+curl -X GET http://localhost:8000/models?max_results=5
+
+# Make a single prediction
+curl -X POST http://localhost:8000/predict-bmu \
+  -H "Content-Type: application/json" \
+  -d '{"data": [0.2, 0.5, 0.8]}'
+
+# Make a batch prediction
+curl -X POST http://localhost:8000/predict-batch \
+  -H "Content-Type: application/json" \
+  -d '{"data": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]]}'
+```
+
 ### API Service with Model Selection
 
 The API service can automatically select the best model based on metrics:

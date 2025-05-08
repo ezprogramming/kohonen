@@ -2,6 +2,7 @@ services:
   # MLflow tracking server
   mlflow:
     build: .
+    container_name: kohonen-mlflow
     command: mlflow server --host 0.0.0.0 --port 5000 --default-artifact-root /app/mlflow_data/artifacts
     ports:
       - "5050:5000"
@@ -27,13 +28,13 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Training service
+  # Training service (designed to exit when done)
   train:
     build: .
+    container_name: kohonen-train
     depends_on:
       mlflow:
         condition: service_healthy
-    command: python -m kohonen.scripts.train_script
     volumes:
       - mlflow_data:/app/mlflow_data
     env_file:
@@ -41,6 +42,10 @@ services:
     environment:
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       - RUN_ID_FILE=${RUN_ID_FILE:-/app/mlflow_data/run_id.txt}
+    command: >
+      sh -c 'echo "This container is intended to run training via make train command and exit."
+             sleep 1
+             exit 0'
     deploy:
       resources:
         limits:
@@ -51,11 +56,42 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    restart: "no"
+
+  # Demos service (designed to exit when done)
+  demos:
+    build: .
+    container_name: kohonen-demos
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - mlflow_data:/app/mlflow_data
+      - ./examples/comparison:/app/examples/comparison
+    env_file:
+      - .env
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+    command: >
+      sh -c 'echo "This container is intended to run demos via make docker-demo-* commands and exit."
+             sleep 1
+             exit 0'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: "no"
 
   # API service
   api:
     build: .
-    container_name: kohonen-api  # Fixed container name for easier management
+    container_name: kohonen-api
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
@@ -95,29 +131,6 @@ services:
              else
              python -m kohonen.scripts.api_script;
              fi'
-
-  # Comparison demos service
-  demos:
-    build: .
-    volumes:
-      - ./examples/comparison:/app/examples/comparison
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    command: >
-      sh -c 'echo "Running SOM Improvement Demonstrations" &&
-             python examples/comparison/01_vectorization_comparison.py &&
-             python examples/comparison/02_batch_processing_memory.py &&
-             python examples/comparison/03_mlflow_integration.py &&
-             python examples/comparison/04_fastapi_integration.py &&
-             python examples/comparison/05_env_config_integration.py'
 
 volumes:
   mlflow_data:
